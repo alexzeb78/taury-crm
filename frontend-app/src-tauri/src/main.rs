@@ -20,25 +20,40 @@ fn greet(name: &str) -> String {
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
+            println!("🚀 Starting Taury CRM application...");
+            
             let app_dir = app.path_resolver()
                 .app_data_dir()
                 .expect("Failed to get app data directory");
 
+            println!("📁 App data directory: {}", app_dir.display());
+
             // Create app directory if it doesn't exist
             if !app_dir.exists() {
+                println!("📁 Creating app directory...");
                 std::fs::create_dir_all(&app_dir)
                     .expect("Failed to create app data directory");
+                println!("✅ App directory created");
+            } else {
+                println!("✅ App directory already exists");
             }
 
             // Initialize database
             tauri::async_runtime::block_on(async move {
+                println!("🔧 Initializing database...");
                 let pool = db::init_database(app_dir)
                     .await
+                    .map_err(|e| {
+                        eprintln!("❌ Database initialization failed: {}", e);
+                        e
+                    })
                     .expect("Failed to initialize database");
 
                 app.manage(pool);
+                println!("✅ Database pool managed");
                 
                 // Lancer le sidecar Python pour génération de documents
+                println!("🐍 Starting document generator sidecar...");
                 let sidecar_manager = sidecar::SidecarManager::new();
                 if let Err(e) = sidecar_manager.start().await {
                     eprintln!("⚠️ Failed to start document generator: {}", e);
@@ -49,6 +64,7 @@ fn main() {
                 app.manage(sidecar_manager);
             });
 
+            println!("✅ Application setup completed");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

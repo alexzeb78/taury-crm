@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
 import { Plus, Search, FileText, Trash2, Download } from 'lucide-react';
 
-interface Document {
+interface DocumentItem {
   id: string;
   customer_id: string;
   title: string;
@@ -20,7 +20,7 @@ interface Customer {
 }
 
 const Documents: React.FC = () => {
-  const [documents, setDocuments] = useState<Document[]>([]);
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);

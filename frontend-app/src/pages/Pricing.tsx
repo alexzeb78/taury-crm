@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
-import { open } from '@tauri-apps/api/dialog';
+import { open as openDialog } from '@tauri-apps/api/dialog';
 import { Upload, Calculator } from 'lucide-react';
 
 const Pricing: React.FC = () => {
@@ -23,7 +23,7 @@ const Pricing: React.FC = () => {
 
   const handleImportExcel = async () => {
     try {
-      const selected = await open({
+      const selected = await openDialog({
         multiple: false,
         filters: [{
           name: 'Excel',

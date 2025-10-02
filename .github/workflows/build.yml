@@ -63,14 +63,27 @@ jobs:
       - name: List build artifacts (Windows)
         if: matrix.platform == 'windows-latest'
         working-directory: frontend-app
-        shell: cmd
+        shell: powershell
         run: |
-          echo "=== Checking bundle directory ==="
-          dir src-tauri\target\release\bundle\ 2>nul || echo "Bundle directory not found"
-          echo "=== Checking target directory ==="
-          dir src-tauri\target\release\ 2>nul || echo "Release directory not found"
-          echo "=== Checking target directory structure ==="
-          dir src-tauri\target /s /b | findstr /i "\.exe \.msi" || echo "No app files found"
+          Write-Host "=== Checking bundle directory ==="
+          if (Test-Path "src-tauri\target\release\bundle\") {
+            Get-ChildItem "src-tauri\target\release\bundle\" -Recurse
+          } else {
+            Write-Host "Bundle directory not found"
+          }
+          Write-Host "=== Checking target directory ==="
+          if (Test-Path "src-tauri\target\release\") {
+            Get-ChildItem "src-tauri\target\release\"
+          } else {
+            Write-Host "Release directory not found"
+          }
+          Write-Host "=== Checking target directory structure ==="
+          $files = Get-ChildItem "src-tauri\target" -Recurse -Include "*.exe", "*.msi" -ErrorAction SilentlyContinue
+          if ($files) {
+            $files | ForEach-Object { Write-Host $_.FullName }
+          } else {
+            Write-Host "No app files found"
+          }
 
       - name: Upload frontend artifacts
         uses: actions/upload-artifact@v4

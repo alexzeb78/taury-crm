@@ -128,14 +128,22 @@ jobs:
           }
           Write-Host "=== Copying exe to bundle directory if bundle not found ==="
           $exeFiles = Get-ChildItem "src-tauri\target\release\" -Filter "*.exe" -ErrorAction SilentlyContinue
+          $targetExeFiles = Get-ChildItem "src-tauri\target\x86_64-pc-windows-msvc\release\" -Filter "*.exe" -ErrorAction SilentlyContinue
+          
           if ($exeFiles) {
             foreach ($exe in $exeFiles) {
-              Write-Host "Found exe: $($exe.Name)"
+              Write-Host "Found exe in release: $($exe.Name)"
+              Copy-Item $exe.FullName "src-tauri\target\release\bundle\" -Force
+              Write-Host "Copied $($exe.Name) to bundle directory"
+            }
+          } elseif ($targetExeFiles) {
+            foreach ($exe in $targetExeFiles) {
+              Write-Host "Found exe in target: $($exe.Name)"
               Copy-Item $exe.FullName "src-tauri\target\release\bundle\" -Force
               Write-Host "Copied $($exe.Name) to bundle directory"
             }
           } else {
-            Write-Host "No exe files found in release directory"
+            Write-Host "No exe files found in release or target directories"
           }
           
           Write-Host "=== Final verification of upload paths ==="
@@ -168,6 +176,7 @@ jobs:
             frontend-app/src-tauri/target/release/bundle/
             frontend-app/src-tauri/target/release/artifacts/
             frontend-app/src-tauri/target/release/emergency/
+            frontend-app/src-tauri/target/x86_64-pc-windows-msvc/release/*.exe
             frontend-app/src-tauri/target/release/*.exe
             frontend-app/src-tauri/target/release/*.msi
             frontend-app/src-tauri/target/release/*.dmg

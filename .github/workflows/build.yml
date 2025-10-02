@@ -94,12 +94,28 @@ jobs:
           } else {
             Write-Host "Release directory not found"
           }
-          Write-Host "=== Checking target directory structure ==="
-          $files = Get-ChildItem "src-tauri\target" -Recurse -Include "*.exe", "*.msi" -ErrorAction SilentlyContinue
-          if ($files) {
-            $files | ForEach-Object { Write-Host $_.FullName }
+          Write-Host "=== Checking entire target directory structure ==="
+          if (Test-Path "src-tauri\target\") {
+            Get-ChildItem "src-tauri\target\" -Recurse -Name | Where-Object { $_ -like "*exe" -or $_ -like "*msi" -or $_ -like "*bundle*" } | ForEach-Object { Write-Host "Found: $_" }
           } else {
-            Write-Host "No app files found"
+            Write-Host "Target directory not found"
+          }
+          Write-Host "=== Creating bundle directory manually if needed ==="
+          if (-not (Test-Path "src-tauri\target\release\bundle\")) {
+            Write-Host "Creating bundle directory structure..."
+            New-Item -ItemType Directory -Path "src-tauri\target\release\bundle\" -Force | Out-Null
+            Write-Host "Bundle directory created"
+          }
+          Write-Host "=== Copying exe to bundle directory if bundle not found ==="
+          $exeFiles = Get-ChildItem "src-tauri\target\release\" -Filter "*.exe" -ErrorAction SilentlyContinue
+          if ($exeFiles) {
+            foreach ($exe in $exeFiles) {
+              Write-Host "Found exe: $($exe.Name)"
+              Copy-Item $exe.FullName "src-tauri\target\release\bundle\" -Force
+              Write-Host "Copied $($exe.Name) to bundle directory"
+            }
+          } else {
+            Write-Host "No exe files found in release directory"
           }
 
       - name: Upload frontend artifacts

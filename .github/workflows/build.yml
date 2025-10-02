@@ -49,11 +49,24 @@ jobs:
         working-directory: frontend-app
         run: npm run tauri build
 
+      - name: List build artifacts
+        working-directory: frontend-app
+        run: |
+          echo "=== Checking bundle directory ==="
+          ls -la src-tauri/target/release/bundle/ || echo "Bundle directory not found"
+          echo "=== Checking target directory ==="
+          ls -la src-tauri/target/release/ || echo "Release directory not found"
+          echo "=== Checking target directory structure ==="
+          find src-tauri/target -name "*.app" -o -name "*.dmg" -o -name "*.msi" -o -name "*.deb" 2>/dev/null || echo "No app files found"
+
       - name: Upload frontend artifacts
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build-${{ matrix.platform }}
-          path: frontend-app/src-tauri/target/release/bundle/
+          path: |
+            frontend-app/src-tauri/target/release/bundle/
+            frontend-app/src-tauri/target/release/taury-crm*
+          if-no-files-found: warn
 
   build-backend:
     runs-on: ubuntu-latest

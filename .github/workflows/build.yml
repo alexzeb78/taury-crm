@@ -71,6 +71,18 @@ jobs:
             Get-ChildItem 'src-tauri' | ForEach-Object { Write-Host "  $($_.Name)" }
           }
           
+          Write-Host "=== Testing frontend build first ==="
+          Write-Host "Running npm run build..."
+          $frontendBuild = npm run build 2>&1
+          Write-Host "Frontend build output:"
+          Write-Host $frontendBuild
+          Write-Host "Frontend build exit code: $LASTEXITCODE"
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Frontend build failed, trying to continue with Tauri build..."
+          }
+          
+          Write-Host "=== Running Tauri build ==="
           Write-Host "Running npm run tauri build..."
           $buildResult = npm run tauri build -- --target x86_64-pc-windows-msvc --bundles msi 2>&1
           Write-Host "Build output:"

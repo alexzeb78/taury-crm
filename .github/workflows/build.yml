@@ -50,7 +50,7 @@ jobs:
         run: npm run tauri build
 
       - name: Upload frontend artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: frontend-build-${{ matrix.platform }}
           path: frontend-app/src-tauri/target/release/bundle/
@@ -71,7 +71,7 @@ jobs:
           cargo test
 
       - name: Upload backend binary
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: backend-binary
           path: backend-app/backend-api/target/release/crm-backend-api
@@ -99,7 +99,7 @@ jobs:
           python -m pytest tests/ || echo "No tests found"
 
       - name: Upload Python sidecar
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: python-sidecar
           path: backend-app/sidecar-python/

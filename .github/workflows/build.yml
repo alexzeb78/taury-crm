@@ -104,21 +104,55 @@ jobs:
           Write-Host "=== Running Tauri build ==="
           Write-Host "Running npm run tauri build..."
           
-          # Try to run tauri build with better error handling
-          try {
-            $buildResult = npm run tauri build -- --target x86_64-pc-windows-msvc --bundles msi 2>&1 | Out-String
+          # Run tauri build with proper output capture
+          $buildOutput = ""
+          $buildError = ""
+          
+          # Capture both stdout and stderr
+          $process = Start-Process -FilePath "npm" -ArgumentList "run", "tauri", "build", "--", "--target", "x86_64-pc-windows-msvc", "--bundles", "msi" -WorkingDirectory (Get-Location) -NoNewWindow -PassThru -RedirectStandardOutput "build_output.txt" -RedirectStandardError "build_error.txt" -Wait
+          
+          Write-Host "Build exit code: $($process.ExitCode)"
+          
+          if (Test-Path "build_output.txt") {
+            $buildOutput = Get-Content "build_output.txt" -Raw
             Write-Host "Build output:"
-            Write-Host $buildResult
-            Write-Host "Build exit code: $LASTEXITCODE"
-          } catch {
-            Write-Host "Build failed with exception: $($_.Exception.Message)"
-            Write-Host "Trying alternative approach..."
+            Write-Host $buildOutput
+            Remove-Item "build_output.txt" -Force
+          }
+          
+          if (Test-Path "build_error.txt") {
+            $buildError = Get-Content "build_error.txt" -Raw
+            Write-Host "Build errors:"
+            Write-Host $buildError
+            Remove-Item "build_error.txt" -Force
+          }
+          
+          if ($process.ExitCode -ne 0) {
+            Write-Host "Primary build failed, trying without bundle specification..."
             
-            # Try building without bundle specification
-            $buildResult2 = npm run tauri build -- --target x86_64-pc-windows-msvc 2>&1 | Out-String
-            Write-Host "Alternative build output:"
-            Write-Host $buildResult2
-            Write-Host "Alternative build exit code: $LASTEXITCODE"
+            # Try without bundle specification
+            $process2 = Start-Process -FilePath "npm" -ArgumentList "run", "tauri", "build", "--", "--target", "x86_64-pc-windows-msvc" -WorkingDirectory (Get-Location) -NoNewWindow -PassThru -RedirectStandardOutput "build_output2.txt" -RedirectStandardError "build_error2.txt" -Wait
+            
+            Write-Host "Alternative build exit code: $($process2.ExitCode)"
+            
+            if (Test-Path "build_output2.txt") {
+              $buildOutput2 = Get-Content "build_output2.txt" -Raw
+              Write-Host "Alternative build output:"
+              Write-Host $buildOutput2
+              Remove-Item "build_output2.txt" -Force
+            }
+            
+            if (Test-Path "build_error2.txt") {
+              $buildError2 = Get-Content "build_error2.txt" -Raw
+              Write-Host "Alternative build errors:"
+              Write-Host $buildError2
+              Remove-Item "build_error2.txt" -Force
+            }
+            
+            if ($process2.ExitCode -ne 0) {
+              Write-Host "Both build attempts failed"
+              exit 1
+            }
           }
           
           Write-Host "Checking what was created..."

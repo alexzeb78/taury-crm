@@ -84,11 +84,23 @@ jobs:
           
           Write-Host "=== Running Tauri build ==="
           Write-Host "Running npm run tauri build..."
-          $buildResult = npm run tauri build -- --target x86_64-pc-windows-msvc --bundles msi 2>&1
-          Write-Host "Build output:"
-          Write-Host $buildResult
           
-          Write-Host "Build exit code: $LASTEXITCODE"
+          # Try to run tauri build with better error handling
+          try {
+            $buildResult = npm run tauri build -- --target x86_64-pc-windows-msvc --bundles msi 2>&1 | Out-String
+            Write-Host "Build output:"
+            Write-Host $buildResult
+            Write-Host "Build exit code: $LASTEXITCODE"
+          } catch {
+            Write-Host "Build failed with exception: $($_.Exception.Message)"
+            Write-Host "Trying alternative approach..."
+            
+            # Try building without bundle specification
+            $buildResult2 = npm run tauri build -- --target x86_64-pc-windows-msvc 2>&1 | Out-String
+            Write-Host "Alternative build output:"
+            Write-Host $buildResult2
+            Write-Host "Alternative build exit code: $LASTEXITCODE"
+          }
           
           Write-Host "Checking what was created..."
           if (Test-Path "src-tauri\target") {

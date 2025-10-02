@@ -65,6 +65,8 @@ jobs:
         run: |
           Write-Host "Building Tauri app for Windows..."
           npm run tauri build -- --target x86_64-pc-windows-msvc --bundles msi
+          Write-Host "Build completed. Checking what was created..."
+          Get-ChildItem "src-tauri\target" -Recurse | Where-Object { $_.Name -like "*exe" -or $_.Name -like "*msi" } | ForEach-Object { Write-Host "Found: $($_.FullName)" }
 
       - name: List build artifacts (Linux/macOS)
         if: matrix.platform != 'windows-latest'
@@ -117,6 +119,21 @@ jobs:
           } else {
             Write-Host "No exe files found in release directory"
           }
+          
+          Write-Host "=== Final verification of upload paths ==="
+          $bundleFiles = Get-ChildItem "src-tauri\target\release\bundle\" -ErrorAction SilentlyContinue
+          $releaseFiles = Get-ChildItem "src-tauri\target\release\" -Filter "*.exe" -ErrorAction SilentlyContinue
+          Write-Host "Bundle directory files: $($bundleFiles.Count)"
+          Write-Host "Release directory exe files: $($releaseFiles.Count)"
+          if ($bundleFiles.Count -eq 0 -and $releaseFiles.Count -gt 0) {
+            Write-Host "Creating fallback structure for upload..."
+            $fallbackDir = "src-tauri\target\release\artifacts"
+            New-Item -ItemType Directory -Path $fallbackDir -Force | Out-Null
+            foreach ($exe in $releaseFiles) {
+              Copy-Item $exe.FullName $fallbackDir -Force
+              Write-Host "Created fallback: $($exe.Name)"
+            }
+          }
 
       - name: Upload frontend artifacts
         uses: actions/upload-artifact@v4
@@ -124,6 +141,7 @@ jobs:
           name: frontend-build-${{ matrix.platform }}
           path: |
             frontend-app/src-tauri/target/release/bundle/
+            frontend-app/src-tauri/target/release/artifacts/
             frontend-app/src-tauri/target/release/*.exe
             frontend-app/src-tauri/target/release/*.msi
             frontend-app/src-tauri/target/release/*.dmg

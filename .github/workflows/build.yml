@@ -56,7 +56,13 @@ jobs:
       - name: Build the frontend app (Linux/macOS)
         if: matrix.platform != 'windows-latest'
         working-directory: frontend-app
-        run: npm run tauri build
+        run: |
+          echo "=== Building frontend first ==="
+          npm run build
+          echo "=== Checking dist directory ==="
+          ls -la dist/
+          echo "=== Running Tauri build ==="
+          npm run tauri build
 
       - name: Build the frontend app (Windows)
         if: matrix.platform == 'windows-latest'
@@ -71,7 +77,7 @@ jobs:
             Get-ChildItem 'src-tauri' | ForEach-Object { Write-Host "  $($_.Name)" }
           }
           
-          Write-Host "=== Testing frontend build first ==="
+          Write-Host "=== Building frontend first ==="
           Write-Host "Running npm run build..."
           $frontendBuild = npm run build 2>&1
           Write-Host "Frontend build output:"
@@ -79,7 +85,17 @@ jobs:
           Write-Host "Frontend build exit code: $LASTEXITCODE"
           
           if ($LASTEXITCODE -ne 0) {
-            Write-Host "Frontend build failed, trying to continue with Tauri build..."
+            Write-Host "Frontend build failed, cannot continue with Tauri build"
+            exit 1
+          }
+          
+          Write-Host "Frontend build successful, checking dist directory..."
+          if (Test-Path "dist") {
+            Write-Host "Dist directory exists with files:"
+            Get-ChildItem "dist" -Recurse | ForEach-Object { Write-Host "  $($_.FullName)" }
+          } else {
+            Write-Host "ERROR: Dist directory not found after build!"
+            exit 1
           }
           
           Write-Host "=== Running Tauri build ==="

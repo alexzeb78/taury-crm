@@ -1,0 +1,78 @@
+{
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devPath": "http://localhost:1420",
+    "distDir": "../dist",
+    "withGlobalTauri": false
+  },
+  "package": {
+    "productName": "Taury CRM",
+    "version": "0.1.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "all": false,
+      "shell": {
+        "all": false,
+        "open": true,
+        "sidecar": true,
+        "scope": [
+          {
+            "name": "binaries/doc-generator",
+            "sidecar": true
+          }
+        ]
+      },
+      "dialog": {
+        "all": false,
+        "open": true,
+        "save": true
+      },
+      "fs": {
+        "all": false,
+        "readFile": true,
+        "writeFile": true,
+        "readDir": true,
+        "copyFile": true,
+        "createDir": true,
+        "removeDir": true,
+        "removeFile": true,
+        "renameFile": true,
+        "exists": true
+      },
+      "http": {
+        "all": true,
+        "request": true
+      }
+    },
+    "bundle": {
+      "active": true,
+      "targets": "all",
+      "identifier": "com.taury.crm",
+      "icon": [],
+      "externalBin": [
+        "binaries/doc-generator"
+      ],
+      "windows": {
+        "wix": {
+          "language": "en-US"
+        }
+      }
+    },
+    "security": {
+      "csp": null
+    },
+    "windows": [
+      {
+        "fullscreen": false,
+        "resizable": true,
+        "title": "Taury CRM",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600
+      }
+    ]
+  }
+}

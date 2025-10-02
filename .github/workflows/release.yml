@@ -1,0 +1,178 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get the previous tag
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          
+          if [ -z "$PREVIOUS_TAG" ]; then
+            echo "changelog<<EOF" >> $GITHUB_OUTPUT
+            echo "## Initial Release" >> $GITHUB_OUTPUT
+            echo "- First release of Taury CRM" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "changelog<<EOF" >> $GITHUB_OUTPUT
+            echo "## Changes since $PREVIOUS_TAG" >> $GITHUB_OUTPUT
+            git log --pretty=format:"- %s" $PREVIOUS_TAG..HEAD >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Taury CRM ${{ github.ref_name }}
+          body: |
+            ${{ steps.changelog.outputs.changelog }}
+            
+            ## Installation
+            
+            ### Frontend (Desktop Application)
+            Download the appropriate installer for your platform:
+            - **Windows**: `Taury CRM_*_x64_en-US.msi`
+            - **macOS**: `Taury CRM_*_aarch64.dmg`
+            - **Linux**: `taury-crm_*_amd64.deb`
+            
+            ### Backend (Server)
+            Download the backend binary for your server architecture and follow the deployment guide.
+            
+            ## Documentation
+            - [Deployment Guide](DEPLOYMENT.md)
+            - [Frontend README](frontend-app/README.md)
+            - [Backend README](backend-app/README.md)
+            
+            ## Support
+            For issues and questions, please open an issue on GitHub.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-and-attach:
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macos-latest, ubuntu-latest, windows-latest]
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend-app/package-lock.json
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies (ubuntu only)
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev webkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install frontend dependencies
+        working-directory: frontend-app
+        run: npm install
+
+      - name: Build the frontend app
+        working-directory: frontend-app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Taury CRM ${{ github.ref_name }}'
+          releaseBody: 'Frontend application for Taury CRM ${{ github.ref_name }}'
+          releaseDraft: false
+          prerelease: false
+
+  build-backend-release:
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build backend for multiple architectures
+        working-directory: backend-app/backend-api
+        run: |
+          # Add targets
+          rustup target add x86_64-unknown-linux-gnu
+          rustup target add aarch64-unknown-linux-gnu
+          rustup target add x86_64-pc-windows-gnu
+          
+          # Build for Linux x86_64
+          cargo build --release --target x86_64-unknown-linux-gnu
+          
+          # Build for Linux ARM64 (Raspberry Pi)
+          cargo build --release --target aarch64-unknown-linux-gnu
+          
+          # Build for Windows
+          cargo build --release --target x86_64-pc-windows-gnu
+
+      - name: Upload backend binaries
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            backend-app/backend-api/target/x86_64-unknown-linux-gnu/release/crm-backend-api
+            backend-app/backend-api/target/aarch64-unknown-linux-gnu/release/crm-backend-api
+            backend-app/backend-api/target/x86_64-pc-windows-gnu/release/crm-backend-api.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-python-sidecar-release:
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Python dependencies
+        working-directory: backend-app/sidecar-python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create Python sidecar archive
+        run: |
+          cd backend-app
+          tar -czf sidecar-python.tar.gz sidecar-python/
+          zip -r sidecar-python.zip sidecar-python/
+
+      - name: Upload Python sidecar
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            backend-app/sidecar-python.tar.gz
+            backend-app/sidecar-python.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

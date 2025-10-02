@@ -1,0 +1,98 @@
+name: Deploy to Raspberry Pi
+
+on:
+  workflow_dispatch:
+    inputs:
+      pi_host:
+        description: 'Raspberry Pi IP address'
+        required: true
+        default: '192.168.1.100'
+      pi_user:
+        description: 'Raspberry Pi username'
+        required: true
+        default: 'pi'
+      pi_key:
+        description: 'SSH private key'
+        required: true
+
+jobs:
+  deploy-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build backend for ARM64
+        working-directory: backend-app/backend-api
+        run: |
+          rustup target add aarch64-unknown-linux-gnu
+          cargo build --release --target aarch64-unknown-linux-gnu
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.PI_SSH_KEY }}
+
+      - name: Deploy to Raspberry Pi
+        run: |
+          # Create deployment directory
+          ssh -o StrictHostKeyChecking=no ${{ github.event.inputs.pi_user }}@${{ github.event.inputs.pi_host }} "mkdir -p /home/${{ github.event.inputs.pi_user }}/taury-crm"
+          
+          # Copy backend binary
+          scp -o StrictHostKeyChecking=no backend-app/backend-api/target/aarch64-unknown-linux-gnu/release/crm-backend-api ${{ github.event.inputs.pi_user }}@${{ github.event.inputs.pi_host }}:/home/${{ github.event.inputs.pi_user }}/taury-crm/
+          
+          # Copy configuration files
+          scp -o StrictHostKeyChecking=no backend-app/docker-compose.yml ${{ github.event.inputs.pi_user }}@${{ github.event.inputs.pi_host }}:/home/${{ github.event.inputs.pi_user }}/taury-crm/
+          
+          # Copy Python sidecar
+          scp -r -o StrictHostKeyChecking=no backend-app/sidecar-python ${{ github.event.inputs.pi_user }}@${{ github.event.inputs.pi_host }}:/home/${{ github.event.inputs.pi_user }}/taury-crm/
+          
+          # Make binary executable
+          ssh -o StrictHostKeyChecking=no ${{ github.event.inputs.pi_user }}@${{ github.event.inputs.pi_host }} "chmod +x /home/${{ github.event.inputs.pi_user }}/taury-crm/crm-backend-api"
+          
+          # Create systemd service
+          ssh -o StrictHostKeyChecking=no ${{ github.event.inputs.pi_user }}@${{ github.event.inputs.pi_host }} "sudo tee /etc/systemd/system/taury-crm.service > /dev/null <<EOF
+          [Unit]
+          Description=Taury CRM Backend
+          After=network.target
+          
+          [Service]
+          Type=simple
+          User=${{ github.event.inputs.pi_user }}
+          WorkingDirectory=/home/${{ github.event.inputs.pi_user }}/taury-crm
+          ExecStart=/home/${{ github.event.inputs.pi_user }}/taury-crm/crm-backend-api
+          Restart=always
+          RestartSec=10
+          Environment=DATABASE_URL=postgresql://crm_user:password@localhost:5432/crm
+          Environment=PORT=8080
+          
+          [Install]
+          WantedBy=multi-user.target
+          EOF"
+          
+          # Reload systemd and enable service
+          ssh -o StrictHostKeyChecking=no ${{ github.event.inputs.pi_user }}@${{ github.event.inputs.pi_host }} "sudo systemctl daemon-reload && sudo systemctl enable taury-crm.service"
+
+      - name: Start services
+        run: |
+          # Start PostgreSQL if not running
+          ssh -o StrictHostKeyChecking=no ${{ github.event.inputs.pi_user }}@${{ github.event.inputs.pi_host }} "sudo systemctl start postgresql"
+          
+          # Start Taury CRM backend
+          ssh -o StrictHostKeyChecking=no ${{ github.event.inputs.pi_user }}@${{ github.event.inputs.pi_user }}@${{ github.event.inputs.pi_host }} "sudo systemctl start taury-crm.service"
+          
+          # Check status
+          ssh -o StrictHostKeyChecking=no ${{ github.event.inputs.pi_user }}@${{ github.event.inputs.pi_host }} "sudo systemctl status taury-crm.service"
+
+      - name: Verify deployment
+        run: |
+          # Wait for service to start
+          sleep 10
+          
+          # Check if service is running
+          ssh -o StrictHostKeyChecking=no ${{ github.event.inputs.pi_user }}@${{ github.event.inputs.pi_host }} "curl -f http://localhost:8080/api/health || exit 1"
+          
+          echo "✅ Backend deployed successfully to ${{ github.event.inputs.pi_host }}:8080"

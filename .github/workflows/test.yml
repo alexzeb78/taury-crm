@@ -1,0 +1,178 @@
+name: Test Suite
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend-app/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend-app
+        run: npm install
+
+      - name: Run frontend linting
+        working-directory: frontend-app
+        run: npm run lint --if-present
+
+      - name: Run frontend type checking
+        working-directory: frontend-app
+        run: npm run type-check --if-present
+
+      - name: Build frontend
+        working-directory: frontend-app
+        run: npm run build
+
+  test-backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: crm_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install backend dependencies
+        working-directory: backend-app/backend-api
+        run: cargo build
+
+      - name: Run backend tests
+        working-directory: backend-app/backend-api
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/crm_test
+        run: cargo test
+
+      - name: Run backend linting
+        working-directory: backend-app/backend-api
+        run: cargo clippy -- -D warnings
+
+      - name: Check backend formatting
+        working-directory: backend-app/backend-api
+        run: cargo fmt -- --check
+
+  test-python-sidecar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Python dependencies
+        working-directory: backend-app/sidecar-python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Python linting
+        working-directory: backend-app/sidecar-python
+        run: |
+          pip install flake8
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+
+      - name: Test Python sidecar
+        working-directory: backend-app/sidecar-python
+        run: |
+          python -c "import api; print('✅ Python sidecar imports successfully')"
+
+  integration-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: crm_integration
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          # Backend
+          cd backend-app/backend-api
+          cargo build --release
+          
+          # Python sidecar
+          cd ../sidecar-python
+          pip install -r requirements.txt
+
+      - name: Start backend
+        working-directory: backend-app/backend-api
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/crm_integration
+          PORT: 8080
+        run: |
+          ./target/release/crm-backend-api &
+          sleep 10
+
+      - name: Start Python sidecar
+        working-directory: backend-app/sidecar-python
+        run: |
+          python api.py &
+          sleep 5
+
+      - name: Test API endpoints
+        run: |
+          # Test backend health
+          curl -f http://localhost:8080/api/health || exit 1
+          
+          # Test Python sidecar
+          curl -f http://localhost:5000/health || exit 1
+          
+          echo "✅ All services are running correctly"
+
+      - name: Test synchronization
+        run: |
+          # Test sync endpoint
+          curl -X POST http://localhost:8080/api/sync \
+            -H "Content-Type: application/json" \
+            -d '{"last_sync_timestamp": 0, "changes": []}' || exit 1
+          
+          echo "✅ Synchronization endpoint is working"

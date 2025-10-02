@@ -64,9 +64,27 @@ jobs:
         shell: powershell
         run: |
           Write-Host "Building Tauri app for Windows..."
-          npm run tauri build -- --target x86_64-pc-windows-msvc --bundles msi
-          Write-Host "Build completed. Checking what was created..."
-          Get-ChildItem "src-tauri\target" -Recurse | Where-Object { $_.Name -like "*exe" -or $_.Name -like "*msi" } | ForEach-Object { Write-Host "Found: $($_.FullName)" }
+          Write-Host "Current directory: $(Get-Location)"
+          Write-Host "Checking if src-tauri exists: $(Test-Path 'src-tauri')"
+          if (Test-Path 'src-tauri') {
+            Write-Host "src-tauri directory contents:"
+            Get-ChildItem 'src-tauri' | ForEach-Object { Write-Host "  $($_.Name)" }
+          }
+          
+          Write-Host "Running npm run tauri build..."
+          $buildResult = npm run tauri build -- --target x86_64-pc-windows-msvc --bundles msi 2>&1
+          Write-Host "Build output:"
+          Write-Host $buildResult
+          
+          Write-Host "Build exit code: $LASTEXITCODE"
+          
+          Write-Host "Checking what was created..."
+          if (Test-Path "src-tauri\target") {
+            Write-Host "Target directory exists. Contents:"
+            Get-ChildItem "src-tauri\target" -Recurse | Where-Object { $_.Name -like "*exe" -or $_.Name -like "*msi" } | ForEach-Object { Write-Host "Found: $($_.FullName)" }
+          } else {
+            Write-Host "ERROR: src-tauri\target directory does not exist!"
+          }
 
       - name: List build artifacts (Linux/macOS)
         if: matrix.platform != 'windows-latest'
@@ -125,6 +143,7 @@ jobs:
           $releaseFiles = Get-ChildItem "src-tauri\target\release\" -Filter "*.exe" -ErrorAction SilentlyContinue
           Write-Host "Bundle directory files: $($bundleFiles.Count)"
           Write-Host "Release directory exe files: $($releaseFiles.Count)"
+          
           if ($bundleFiles.Count -eq 0 -and $releaseFiles.Count -gt 0) {
             Write-Host "Creating fallback structure for upload..."
             $fallbackDir = "src-tauri\target\release\artifacts"
@@ -133,6 +152,12 @@ jobs:
               Copy-Item $exe.FullName $fallbackDir -Force
               Write-Host "Created fallback: $($exe.Name)"
             }
+          } elseif ($bundleFiles.Count -eq 0 -and $releaseFiles.Count -eq 0) {
+            Write-Host "CRITICAL: No build artifacts found! Creating emergency fallback..."
+            $emergencyDir = "src-tauri\target\release\emergency"
+            New-Item -ItemType Directory -Path $emergencyDir -Force | Out-Null
+            "Windows build failed - no artifacts generated" | Out-File -FilePath "$emergencyDir\build-status.txt" -Encoding UTF8
+            Write-Host "Created emergency fallback file"
           }
 
       - name: Upload frontend artifacts
@@ -142,6 +167,7 @@ jobs:
           path: |
             frontend-app/src-tauri/target/release/bundle/
             frontend-app/src-tauri/target/release/artifacts/
+            frontend-app/src-tauri/target/release/emergency/
             frontend-app/src-tauri/target/release/*.exe
             frontend-app/src-tauri/target/release/*.msi
             frontend-app/src-tauri/target/release/*.dmg

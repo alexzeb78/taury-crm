@@ -47,22 +47,13 @@ jobs:
 
       - name: Build the frontend app
         working-directory: frontend-app
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run tauri build
+
+      - name: Upload frontend artifacts
+        uses: actions/upload-artifact@v3
         with:
-          tagName: frontend-v__VERSION__
-          releaseName: 'Taury CRM Frontend v__VERSION__'
-          releaseBody: |
-            Frontend application for Taury CRM.
-            
-            ## Changes
-            - Fixed timestamp synchronization
-            - Fixed date display issues
-            - Improved sync system
-            - Separated frontend and backend
-          releaseDraft: true
-          prerelease: false
+          name: frontend-build-${{ matrix.platform }}
+          path: frontend-app/src-tauri/target/release/bundle/
 
   build-backend:
     runs-on: ubuntu-latest
@@ -79,31 +70,11 @@ jobs:
           cargo build --release
           cargo test
 
-      - name: Create backend release
-        uses: softprops/action-gh-release@v1
+      - name: Upload backend binary
+        uses: actions/upload-artifact@v3
         with:
-          tag_name: backend-v${{ github.run_number }}
-          name: Taury CRM Backend v${{ github.run_number }}
-          body: |
-            Backend API for Taury CRM.
-            
-            ## Installation
-            1. Download the binary for your platform
-            2. Set up PostgreSQL database
-            3. Configure environment variables
-            4. Run the binary
-            
-            ## Configuration
-            ```bash
-            DATABASE_URL=postgresql://user:password@localhost:5432/crm
-            PORT=8080
-            ```
-          files: |
-            backend-app/backend-api/target/release/crm-backend-api
-          draft: true
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: backend-binary
+          path: backend-app/backend-api/target/release/crm-backend-api
 
   build-python-sidecar:
     runs-on: ubuntu-latest
@@ -127,53 +98,9 @@ jobs:
         run: |
           python -m pytest tests/ || echo "No tests found"
 
-      - name: Create Python sidecar release
-        uses: softprops/action-gh-release@v1
+      - name: Upload Python sidecar
+        uses: actions/upload-artifact@v3
         with:
-          tag_name: sidecar-v${{ github.run_number }}
-          name: Taury CRM Python Sidecar v${{ github.run_number }}
-          body: |
-            Python sidecar for document generation.
-            
-            ## Installation
-            1. Install Python 3.9+
-            2. Install dependencies: `pip install -r requirements.txt`
-            3. Run: `python api.py`
-          files: |
-            backend-app/sidecar-python/
-          draft: true
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: python-sidecar
+          path: backend-app/sidecar-python/
 
-  create-complete-release:
-    needs: [build-frontend, build-backend, build-python-sidecar]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Create complete release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: v${{ github.run_number }}
-          name: Taury CRM Complete v${{ github.run_number }}
-          body: |
-            Complete Taury CRM application with frontend, backend, and sidecar.
-            
-            ## Components
-            - **Frontend**: Desktop application (Windows, macOS, Linux)
-            - **Backend**: API server (Rust)
-            - **Sidecar**: Document generation (Python)
-            
-            ## Quick Start
-            1. Download and install the frontend for your platform
-            2. Set up the backend on your server (Raspberry Pi recommended)
-            3. Configure the frontend to connect to your backend
-            
-            ## Documentation
-            See `DEPLOYMENT.md` for detailed installation instructions.
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

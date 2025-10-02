@@ -17,12 +17,7 @@
         "all": false,
         "open": true,
         "sidecar": true,
-        "scope": [
-          {
-            "name": "binaries/doc-generator",
-            "sidecar": true
-          }
-        ]
+        "scope": []
       },
       "dialog": {
         "all": false,
@@ -51,9 +46,7 @@
       "targets": "all",
       "identifier": "com.taury.crm",
       "icon": [],
-      "externalBin": [
-        "binaries/doc-generator"
-      ],
+      "externalBin": [],
       "windows": {
         "wix": {
           "language": "en-US"

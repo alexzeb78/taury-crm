@@ -55,7 +55,7 @@ const Documents: React.FC = () => {
       
       console.log('🔄 [Documents] Calling invoke get_documents and get_customers...');
       const [docsData, customersData] = await Promise.all([
-        invoke<Document[]>('get_documents'),
+        invoke<DocumentItem[]>('get_documents'),
         invoke<Customer[]>('get_customers'),
       ]);
       console.log('✅ [Documents] Received documents:', docsData);

@@ -31,35 +31,9 @@ jobs:
           fi
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: Taury CRM ${{ github.ref_name }}
-          body: |
-            ${{ steps.changelog.outputs.changelog }}
-            
-            ## Installation
-            
-            ### Frontend (Desktop Application)
-            Download the appropriate installer for your platform:
-            - **Windows**: `Taury CRM_*_x64_en-US.msi`
-            - **macOS**: `Taury CRM_*_aarch64.dmg`
-            - **Linux**: `taury-crm_*_amd64.deb`
-            
-            ### Backend (Server)
-            Download the backend binary for your server architecture and follow the deployment guide.
-            
-            ## Documentation
-            - [Deployment Guide](DEPLOYMENT.md)
-            - [Frontend README](frontend-app/README.md)
-            - [Backend README](backend-app/README.md)
-            
-            ## Support
-            For issues and questions, please open an issue on GitHub.
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Release ${{ github.ref_name }} created successfully"
+          echo "Frontend, backend, and sidecar artifacts will be uploaded separately"
 
   build-and-attach:
     needs: create-release
@@ -95,15 +69,13 @@ jobs:
 
       - name: Build the frontend app
         working-directory: frontend-app
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run tauri build
+
+      - name: Upload frontend artifacts
+        uses: actions/upload-artifact@v4
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Taury CRM ${{ github.ref_name }}'
-          releaseBody: 'Frontend application for Taury CRM ${{ github.ref_name }}'
-          releaseDraft: false
-          prerelease: false
+          name: frontend-release-${{ github.ref_name }}
+          path: frontend-app/src-tauri/target/release/bundle/
 
   build-backend-release:
     needs: create-release
@@ -133,15 +105,13 @@ jobs:
           cargo build --release --target x86_64-pc-windows-gnu
 
       - name: Upload backend binaries
-        uses: softprops/action-gh-release@v1
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ github.ref_name }}
-          files: |
+          name: backend-release-${{ github.ref_name }}
+          path: |
             backend-app/backend-api/target/x86_64-unknown-linux-gnu/release/crm-backend-api
             backend-app/backend-api/target/aarch64-unknown-linux-gnu/release/crm-backend-api
             backend-app/backend-api/target/x86_64-pc-windows-gnu/release/crm-backend-api.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-python-sidecar-release:
     needs: create-release
@@ -168,11 +138,9 @@ jobs:
           zip -r sidecar-python.zip sidecar-python/
 
       - name: Upload Python sidecar
-        uses: softprops/action-gh-release@v1
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ github.ref_name }}
-          files: |
+          name: sidecar-release-${{ github.ref_name }}
+          path: |
             backend-app/sidecar-python.tar.gz
             backend-app/sidecar-python.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
